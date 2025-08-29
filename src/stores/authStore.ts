@@ -418,14 +418,46 @@ const handleOAuthCallback = async () => {
   oauthProcessing = true
 
   try {
-    console.log('🔑 OAuth 콜백 감지 - URL에서 세션 추출 시작')
-    const { data, error } = await supabase.auth.getSessionFromUrl({ storeSession: true })
-    if (error) {
-      console.error('🚨 OAuth 세션 추출 실패:', error.message)
-    } else if (data?.session?.user) {
-      console.log('✅ OAuth 세션 저장 완료:', data.session.user.email)
-    } else {
-      console.log('⚠️ OAuth 세션 정보가 비어있습니다')
+    console.log('🔑 OAuth 콜백 감지 - URL 세션 처리 시작')
+
+    if (hasPkceCode) {
+      // PKCE 코드 교환 처리
+      const { data, error } = await supabase.auth.exchangeCodeForSession(window.location.href)
+      if (error) {
+        console.error('🚨 PKCE 코드 교환 실패:', error.message)
+      } else if (data?.session?.user) {
+        console.log('✅ PKCE 세션 저장 완료:', data.session.user.email)
+      } else {
+        console.log('⚠️ PKCE 교환 후 세션이 비어있습니다')
+      }
+    } else if (hasImplicitTokens) {
+      // Implicit 해시 토큰 직접 파싱 후 세션 설정
+      const hashParams = new URLSearchParams(hash.replace(/^#/, ''))
+      const access_token = hashParams.get('access_token') || ''
+      const refresh_token = hashParams.get('refresh_token') || ''
+
+      if (!access_token) {
+        console.error('🚨 해시에서 access_token을 찾을 수 없습니다')
+      } else if (!refresh_token) {
+        console.warn('⚠️ 해시에 refresh_token이 없습니다. 세션 자동 복원을 대기합니다')
+        // 잠시 대기 후 세션 확인 (라이브러리가 처리했는지 확인)
+        await new Promise((r) => setTimeout(r, 100))
+        const { data, error } = await supabase.auth.getSession()
+        if (error) {
+          console.error('🚨 세션 확인 실패:', error.message)
+        } else if (data?.session?.user) {
+          console.log('✅ OAuth 세션 확인 완료:', data.session.user.email)
+        } else {
+          console.warn('⚠️ 세션을 확인할 수 없습니다')
+        }
+      } else {
+        const { data, error } = await supabase.auth.setSession({ access_token, refresh_token })
+        if (error) {
+          console.error('🚨 세션 설정 실패:', error.message)
+        } else if (data?.session?.user) {
+          console.log('✅ OAuth 세션 저장 완료:', data.session.user.email)
+        }
+      }
     }
   } catch (e) {
     console.error('🚨 OAuth 콜백 처리 중 예외:', e)
