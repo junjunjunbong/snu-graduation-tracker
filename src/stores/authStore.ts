@@ -393,15 +393,46 @@ const initializeAuth = async () => {
   }
 }
 
-// OAuth 해시 감지 및 처리
-const handleOAuthCallback = () => {
-  const hash = window.location.hash
-  if (hash && hash.includes('access_token')) {
-    console.log('🔑 OAuth 해시 감지 - React에서 처리 예정:', hash.substring(0, 50) + '...')
-    // OAuth 콜백이므로 세션 초기화 실행
-    setTimeout(() => {
-      initializeAuth()
-    }, 100)
+// OAuth 콜백 중복 처리 방지 플래그
+let oauthHandled = false
+let oauthProcessing = false
+
+// OAuth 해시/쿼리 감지 및 처리
+const handleOAuthCallback = async () => {
+  const hash = window.location.hash || ''
+  const search = window.location.search || ''
+
+  // implicit(flow: hash) 또는 PKCE(flow: code) 모두 감지
+  const hasImplicitTokens = hash.includes('access_token') ||
+    hash.includes('refresh_token') ||
+    hash.includes('provider_token') ||
+    hash.includes('expires_at') ||
+    hash.includes('expires_in') ||
+    hash.includes('token_type')
+  const hasPkceCode = /[?&]code=/.test(search)
+
+  const isOAuthUrl = hasImplicitTokens || hasPkceCode
+  if (!isOAuthUrl || oauthHandled) return
+
+  oauthHandled = true
+  oauthProcessing = true
+
+  try {
+    console.log('🔑 OAuth 콜백 감지 - URL에서 세션 추출 시작')
+    const { data, error } = await supabase.auth.getSessionFromUrl({ storeSession: true })
+    if (error) {
+      console.error('🚨 OAuth 세션 추출 실패:', error.message)
+    } else if (data?.session?.user) {
+      console.log('✅ OAuth 세션 저장 완료:', data.session.user.email)
+    } else {
+      console.log('⚠️ OAuth 세션 정보가 비어있습니다')
+    }
+  } catch (e) {
+    console.error('🚨 OAuth 콜백 처리 중 예외:', e)
+  } finally {
+    // 토큰/코드가 담긴 URL 정리
+    forceCleanUrl()
+    oauthProcessing = false
   }
 }
 
@@ -416,21 +447,22 @@ const forceCleanUrl = () => {
 
 // 페이지 로드 시 OAuth 처리 및 URL 정리
 window.addEventListener('load', () => {
-  handleOAuthCallback()
-  forceCleanUrl()
+  // 먼저 OAuth 콜백을 처리하고, 정리는 내부에서 수행
+  void handleOAuthCallback()
 })
 
 window.addEventListener('DOMContentLoaded', () => {
-  handleOAuthCallback()  
-  forceCleanUrl()
+  // DOM 로드 시에도 한 번 더 시도 (중복 방지됨)
+  void handleOAuthCallback()
 })
 
-// 즉시 OAuth 감지 시도
-handleOAuthCallback()
+// 즉시 OAuth 감지 시도 (중복 방지됨)
+void handleOAuthCallback()
 
 // 일반적인 경우 세션 초기화
 setTimeout(() => {
-  if (!window.location.hash) {
+  // OAuth 콜백 처리 중이 아니고, URL에 토큰/코드가 없을 때만 초기화
+  if (!window.location.hash && !window.location.search && !oauthProcessing) {
     initializeAuth()
   }
 }, 200)
