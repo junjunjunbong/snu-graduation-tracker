@@ -315,8 +315,6 @@ export const useAuthStore = create<AuthStore>()(
 
 // 초기 세션 확인 - 강화된 세션 복원
 const initializeAuth = async () => {
-  const currentState = useAuthStore.getState()
-  
   // 로딩 상태로 설정
   useAuthStore.setState({ isLoading: true, error: null })
   
