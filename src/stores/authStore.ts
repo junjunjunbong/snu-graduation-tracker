@@ -34,7 +34,7 @@ export const useAuthStore = create<AuthStore>()(
     (set, get) => ({
       user: null,
       isAuthenticated: false,
-      isLoading: true, // 초기 로딩 상태
+      isLoading: false, // 세션 체크 후 업데이트
       error: null,
 
       signInWithGoogle: async () => {
@@ -263,24 +263,81 @@ export const useAuthStore = create<AuthStore>()(
       partialize: (state) => ({ 
         user: state.user, 
         isAuthenticated: state.isAuthenticated 
-      })
+      }),
+      // 저장된 상태가 복원될 때 세션 검증
+      onRehydrateStorage: () => (state) => {
+        if (state?.isAuthenticated && state?.user) {
+          console.log('💾 저장된 인증 상태 복원 시도:', state.user.email)
+          // 실제 세션 유효성 검증을 위해 지연 실행
+          setTimeout(async () => {
+            try {
+              const { data: { session }, error } = await supabase.auth.getSession()
+              if (error) throw error
+              
+              if (session?.user) {
+                console.log('✅ 저장된 상태 + 유효한 세션 확인됨')
+                // 세션이 유효하면 데이터 동기화
+                const authStore = useAuthStore.getState()
+                if (authStore.isAuthenticated) {
+                  await authStore.syncDataFromCloud()
+                }
+              } else {
+                console.log('❌ 저장된 상태가 있지만 세션이 만료됨 - 로그아웃 처리')
+                useAuthStore.setState({
+                  user: null,
+                  isAuthenticated: false,
+                  isLoading: false,
+                  error: null
+                })
+              }
+            } catch (error) {
+              console.error('저장된 상태 검증 실패:', error)
+              useAuthStore.setState({
+                user: null,
+                isAuthenticated: false,
+                isLoading: false,
+                error: null
+              })
+            }
+          }, 100)
+        } else {
+          // 저장된 인증 상태가 없으면 일반 세션 체크
+          setTimeout(() => {
+            if (!window.location.hash) {
+              initializeAuth()
+            }
+          }, 300)
+        }
+      }
     }
   )
 )
 
 // 초기 세션 확인 - 강화된 세션 복원
 const initializeAuth = async () => {
+  const currentState = useAuthStore.getState()
+  
+  // 로딩 상태로 설정
+  useAuthStore.setState({ isLoading: true, error: null })
+  
   try {
+    console.log('🔍 OAuth 콜백 처리 시작...')
+    
     const { data: { session }, error } = await supabase.auth.getSession()
     
     if (error) {
       console.error('세션 확인 오류:', error)
-      useAuthStore.setState({ isLoading: false, error: error.message })
+      useAuthStore.setState({ 
+        isLoading: false, 
+        error: error.message,
+        user: null,
+        isAuthenticated: false 
+      })
       return
     }
 
     if (session?.user) {
-      console.log('✅ 기존 세션 복원:', session.user.email)
+      console.log('✅ 세션 복원 성공:', session.user.email)
       const user: GoogleUser = {
         id: session.user.id,
         email: session.user.email || '',
@@ -298,23 +355,39 @@ const initializeAuth = async () => {
       // 세션 복원 후 데이터 동기화
       const authStore = useAuthStore.getState()
       await authStore.syncDataFromCloud()
+      
+      console.log('🎉 로그인 완료 및 데이터 동기화 성공')
     } else {
       console.log('❌ 기존 세션 없음')
       useAuthStore.setState({
-        isLoading: false
+        user: null,
+        isAuthenticated: false,
+        isLoading: false,
+        error: null
       })
     }
   } catch (error) {
     console.error('세션 초기화 실패:', error)
     useAuthStore.setState({ 
+      user: null,
+      isAuthenticated: false,
       isLoading: false, 
       error: '세션 초기화 중 오류가 발생했습니다' 
     })
   }
 }
 
-// 세션 초기화 실행
-initializeAuth()
+// OAuth 해시 감지 및 처리
+const handleOAuthCallback = () => {
+  const hash = window.location.hash
+  if (hash && hash.includes('access_token')) {
+    console.log('🔑 OAuth 해시 감지 - React에서 처리 예정:', hash.substring(0, 50) + '...')
+    // OAuth 콜백이므로 세션 초기화 실행
+    setTimeout(() => {
+      initializeAuth()
+    }, 100)
+  }
+}
 
 // 강력한 URL 정리 함수
 const forceCleanUrl = () => {
@@ -325,9 +398,26 @@ const forceCleanUrl = () => {
   }
 }
 
-// 페이지 로드 시 URL 정리
-window.addEventListener('load', forceCleanUrl)
-window.addEventListener('DOMContentLoaded', forceCleanUrl)
+// 페이지 로드 시 OAuth 처리 및 URL 정리
+window.addEventListener('load', () => {
+  handleOAuthCallback()
+  forceCleanUrl()
+})
+
+window.addEventListener('DOMContentLoaded', () => {
+  handleOAuthCallback()  
+  forceCleanUrl()
+})
+
+// 즉시 OAuth 감지 시도
+handleOAuthCallback()
+
+// 일반적인 경우 세션 초기화
+setTimeout(() => {
+  if (!window.location.hash) {
+    initializeAuth()
+  }
+}, 200)
 
 // Supabase 인증 상태 변경 감지 - 강화된 세션 관리
 supabase.auth.onAuthStateChange(async (event, session) => {
@@ -336,6 +426,8 @@ supabase.auth.onAuthStateChange(async (event, session) => {
   console.log('🔄 인증 상태 변경:', event, session?.user?.email)
 
   if (event === 'SIGNED_IN' && session?.user) {
+    console.log('✅ SIGNED_IN 이벤트 - 세션 설정 중...')
+    
     const user: GoogleUser = {
       id: session.user.id,
       email: session.user.email || '',
@@ -343,6 +435,7 @@ supabase.auth.onAuthStateChange(async (event, session) => {
       picture: session.user.user_metadata.avatar_url
     }
 
+    // 상태 즉시 업데이트
     useAuthStore.setState({
       user,
       isAuthenticated: true,
@@ -350,33 +443,42 @@ supabase.auth.onAuthStateChange(async (event, session) => {
       error: null
     })
 
-    // URL 해시 정리 (토큰 정보 제거) - 강력한 정리
+    // URL 정리 함수
     const cleanUrl = () => {
-      if (window.location.hash && (
+      const shouldClean = window.location.hash && (
         window.location.hash.includes('access_token') || 
         window.location.hash.includes('refresh_token') ||
         window.location.hash.includes('provider_token') ||
         window.location.hash.includes('expires_at') ||
         window.location.hash.includes('expires_in') ||
         window.location.hash.includes('token_type')
-      )) {
-        console.log('🔄 URL 토큰 정리 중...')
+      )
+      
+      if (shouldClean) {
+        console.log('🧹 OAuth 토큰 URL 정리 중...')
         window.history.replaceState({}, document.title, window.location.pathname)
-        console.log('✅ URL 정리 완료!')
+        console.log('✨ URL 정리 완료!')
       }
     }
     
-    // 즉시 실행 및 여러 번 시도
+    // 즉시 및 지연 URL 정리
     cleanUrl()
     setTimeout(cleanUrl, 100)
     setTimeout(cleanUrl, 500)
     setTimeout(cleanUrl, 1000)
 
-    // 데이터 마이그레이션 처리
-    await authStore.handleDataMigration()
+    try {
+      // 데이터 마이그레이션 처리 (비동기)
+      console.log('💾 데이터 마이그레이션 시작...')
+      await authStore.handleDataMigration()
+      console.log('✅ 데이터 마이그레이션 완료')
+    } catch (error) {
+      console.error('❌ 데이터 마이그레이션 실패:', error)
+    }
     
-    // 즉시 URL 강제 정리
-    forceCleanUrl()
+    // 최종 URL 정리
+    setTimeout(forceCleanUrl, 1500)
+    
   } else if (event === 'SIGNED_OUT') {
     console.log('👋 로그아웃 처리')
     useAuthStore.setState({
@@ -385,19 +487,56 @@ supabase.auth.onAuthStateChange(async (event, session) => {
       isLoading: false,
       error: null
     })
-  } else if (event === 'TOKEN_REFRESHED') {
-    console.log('🔄 토큰 갱신됨')
-    // 토큰 갱신 시에도 URL 정리
-    const cleanUrl = () => {
+  } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+    console.log('🔄 토큰 갱신됨 - 세션 유지')
+    
+    // 기존 사용자 정보가 없으면 업데이트
+    const currentUser = authStore.user
+    if (!currentUser || !authStore.isAuthenticated) {
+      const user: GoogleUser = {
+        id: session.user.id,
+        email: session.user.email || '',
+        name: session.user.user_metadata.full_name,
+        picture: session.user.user_metadata.avatar_url
+      }
+
+      useAuthStore.setState({
+        user,
+        isAuthenticated: true,
+        isLoading: false,
+        error: null
+      })
+      
+      console.log('🔄 토큰 갱신 시 세션 복원:', user.email)
+    }
+    
+    // URL 정리
+    setTimeout(() => {
       if (window.location.hash) {
         console.log('🔄 토큰 갱신 후 URL 정리 중...')
         window.history.replaceState({}, document.title, window.location.pathname)
-        console.log('✅ URL 정리 완료!')
       }
+    }, 100)
+  } else if (event === 'INITIAL_SESSION') {
+    console.log('🔍 기타 인증 이벤트: INITIAL_SESSION', session?.user?.email)
+    // INITIAL_SESSION에서도 세션이 있으면 복원
+    if (session?.user) {
+      const user: GoogleUser = {
+        id: session.user.id,
+        email: session.user.email || '',
+        name: session.user.user_metadata.full_name,
+        picture: session.user.user_metadata.avatar_url
+      }
+
+      useAuthStore.setState({
+        user,
+        isAuthenticated: true,
+        isLoading: false,
+        error: null
+      })
+      
+      console.log('🔄 INITIAL_SESSION에서 세션 복원:', user.email)
     }
-    cleanUrl()
-    setTimeout(cleanUrl, 100)
-    setTimeout(cleanUrl, 500)
   } else {
     console.log('🔍 기타 인증 이벤트:', event)
   }
