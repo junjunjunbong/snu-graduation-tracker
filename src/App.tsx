@@ -29,7 +29,18 @@ function App() {
           if (!sessionData.session && !sessionError) {
             // 세션이 없다면 해시에서 수동 파싱 시도
             console.log('🔧 해시에서 수동 세션 복원 시도...')
-            await supabase.auth.refreshSession()
+            
+            // Supabase가 해시를 자동으로 처리하도록 강제
+            const { error: refreshError } = await supabase.auth.refreshSession()
+            if (refreshError) {
+              console.error('세션 새로고침 오류:', refreshError)
+            }
+            
+            // 추가로 getUser로 현재 사용자 확인
+            const { data: userData, error: userError } = await supabase.auth.getUser()
+            if (userData.user && !userError) {
+              console.log('✅ 사용자 확인 성공:', userData.user.email)
+            }
           }
           
           // 최종 세션 상태 확인
