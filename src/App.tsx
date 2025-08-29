@@ -3,6 +3,7 @@ import RequirementCards from './components/RequirementCards'
 import SemesterGrid from './components/SemesterGrid'
 import Header from './components/Header'
 import { SyncStatus } from './components/SyncStatus'
+import { BrowserGuide } from './components/BrowserGuide'
 
 function App() {
   const { requirements } = useCreditStore()
@@ -10,6 +11,9 @@ function App() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', padding: '1rem' }}>
+      {/* 브라우저 가이드 팝업 */}
+      <BrowserGuide />
+      
       {/* 헤더 */}
       <Header />
       
