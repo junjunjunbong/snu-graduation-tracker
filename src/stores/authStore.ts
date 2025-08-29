@@ -268,28 +268,53 @@ export const useAuthStore = create<AuthStore>()(
   )
 )
 
-// 초기 세션 확인
-supabase.auth.getSession().then(({ data: { session } }) => {
-  if (session?.user) {
-    const user: GoogleUser = {
-      id: session.user.id,
-      email: session.user.email || '',
-      name: session.user.user_metadata.full_name,
-      picture: session.user.user_metadata.avatar_url
+// 초기 세션 확인 - 강화된 세션 복원
+const initializeAuth = async () => {
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession()
+    
+    if (error) {
+      console.error('세션 확인 오류:', error)
+      useAuthStore.setState({ isLoading: false, error: error.message })
+      return
     }
 
-    useAuthStore.setState({
-      user,
-      isAuthenticated: true,
-      isLoading: false,
-      error: null
-    })
-  } else {
-    useAuthStore.setState({
-      isLoading: false
+    if (session?.user) {
+      console.log('✅ 기존 세션 복원:', session.user.email)
+      const user: GoogleUser = {
+        id: session.user.id,
+        email: session.user.email || '',
+        name: session.user.user_metadata.full_name,
+        picture: session.user.user_metadata.avatar_url
+      }
+
+      useAuthStore.setState({
+        user,
+        isAuthenticated: true,
+        isLoading: false,
+        error: null
+      })
+
+      // 세션 복원 후 데이터 동기화
+      const authStore = useAuthStore.getState()
+      await authStore.syncDataFromCloud()
+    } else {
+      console.log('❌ 기존 세션 없음')
+      useAuthStore.setState({
+        isLoading: false
+      })
+    }
+  } catch (error) {
+    console.error('세션 초기화 실패:', error)
+    useAuthStore.setState({ 
+      isLoading: false, 
+      error: '세션 초기화 중 오류가 발생했습니다' 
     })
   }
-})
+}
+
+// 세션 초기화 실행
+initializeAuth()
 
 // 강력한 URL 정리 함수
 const forceCleanUrl = () => {
@@ -304,9 +329,11 @@ const forceCleanUrl = () => {
 window.addEventListener('load', forceCleanUrl)
 window.addEventListener('DOMContentLoaded', forceCleanUrl)
 
-// Supabase 인증 상태 변경 감지
-supabase.auth.onAuthStateChange((event, session) => {
+// Supabase 인증 상태 변경 감지 - 강화된 세션 관리
+supabase.auth.onAuthStateChange(async (event, session) => {
   const authStore = useAuthStore.getState()
+
+  console.log('🔄 인증 상태 변경:', event, session?.user?.email)
 
   if (event === 'SIGNED_IN' && session?.user) {
     const user: GoogleUser = {
@@ -346,11 +373,12 @@ supabase.auth.onAuthStateChange((event, session) => {
     setTimeout(cleanUrl, 1000)
 
     // 데이터 마이그레이션 처리
-    authStore.handleDataMigration()
+    await authStore.handleDataMigration()
     
     // 즉시 URL 강제 정리
     forceCleanUrl()
   } else if (event === 'SIGNED_OUT') {
+    console.log('👋 로그아웃 처리')
     useAuthStore.setState({
       user: null,
       isAuthenticated: false,
@@ -358,6 +386,7 @@ supabase.auth.onAuthStateChange((event, session) => {
       error: null
     })
   } else if (event === 'TOKEN_REFRESHED') {
+    console.log('🔄 토큰 갱신됨')
     // 토큰 갱신 시에도 URL 정리
     const cleanUrl = () => {
       if (window.location.hash) {
@@ -369,5 +398,7 @@ supabase.auth.onAuthStateChange((event, session) => {
     cleanUrl()
     setTimeout(cleanUrl, 100)
     setTimeout(cleanUrl, 500)
+  } else {
+    console.log('🔍 기타 인증 이벤트:', event)
   }
 })
