@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useCreditStore, useProfileStore } from './stores/creditStore'
+import { supabase } from './lib/supabase'
 import RequirementCards from './components/RequirementCards'
 import SemesterGrid from './components/SemesterGrid'
 import Header from './components/Header'
@@ -10,25 +11,54 @@ function App() {
   const { requirements } = useCreditStore()
   const { dualMajorEnabled, toggleDualMajor } = useProfileStore()
 
-  // 앱 로드 시 즉시 URL 토큰 정리
+  // OAuth 콜백 처리 및 URL 정리
   useEffect(() => {
-    const cleanUpUrl = () => {
-      if (window.location.hash || window.location.search) {
-        console.log('🧹 앱 로드 시 URL 정리 실행...', window.location.href)
+    const handleOAuthCallback = async () => {
+      // OAuth 해시가 있는 경우 Supabase에서 세션 설정
+      if (window.location.hash && window.location.hash.includes('access_token')) {
+        console.log('🔑 OAuth 콜백 감지:', window.location.hash.substring(0, 50) + '...')
+        
+        try {
+          // Supabase Auth 상태 변경을 수동으로 트리거하여 해시 처리
+          console.log('🔄 Supabase 세션 새로고침 시작...')
+          
+          // 현재 세션 확인
+          const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+          console.log('📊 현재 세션 상태:', sessionData.session ? '✅ 있음' : '❌ 없음')
+          
+          if (!sessionData.session && !sessionError) {
+            // 세션이 없다면 해시에서 수동 파싱 시도
+            console.log('🔧 해시에서 수동 세션 복원 시도...')
+            await supabase.auth.refreshSession()
+          }
+          
+          // 최종 세션 상태 확인
+          const { data: finalData } = await supabase.auth.getSession()
+          if (finalData.session) {
+            console.log('✅ OAuth 세션 설정 최종 성공:', finalData.session.user.email)
+          } else {
+            console.log('⚠️ 세션 설정이 완료되지 않음 - AuthStore에서 처리될 예정')
+          }
+        } catch (error) {
+          console.error('OAuth 콜백 처리 오류:', error)
+        }
+        
+        // 약간의 지연 후 URL 정리 (Supabase 처리 완료 대기)
+        setTimeout(() => {
+          console.log('🧹 OAuth 콜백 후 URL 정리')
+          window.history.replaceState({}, document.title, window.location.pathname)
+          console.log('✨ 깔끔한 URL로 변경 완료!')
+        }, 1000)
+      } else if (window.location.search) {
+        // 일반적인 쿼리 파라미터 정리
+        console.log('🧹 쿼리 파라미터 정리')
         window.history.replaceState({}, document.title, window.location.pathname)
-        console.log('✨ 깔끔한 URL로 변경 완료!', window.location.href)
+        console.log('✨ URL 정리 완료!')
       }
     }
 
-    // 즉시 실행
-    cleanUpUrl()
-    
-    // 약간의 지연 후에도 한 번 더 실행
-    setTimeout(cleanUpUrl, 100)
-    setTimeout(cleanUpUrl, 300)
-    setTimeout(cleanUpUrl, 500)
-    setTimeout(cleanUpUrl, 1000)
-    setTimeout(cleanUpUrl, 2000)
+    // OAuth 콜백 처리 실행
+    handleOAuthCallback()
   }, [])
 
   return (
