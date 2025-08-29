@@ -13,24 +13,22 @@ function App() {
   // 앱 로드 시 즉시 URL 토큰 정리
   useEffect(() => {
     const cleanUpUrl = () => {
-      if (window.location.hash && (
-        window.location.hash.includes('access_token') || 
-        window.location.hash.includes('refresh_token') ||
-        window.location.hash.includes('provider_token') ||
-        window.location.hash.includes('expires_at')
-      )) {
-        console.log('🧹 앱 로드 시 URL 정리 실행...')
-        window.history.replaceState({}, document.title, window.location.pathname + window.location.search)
-        console.log('✨ 깔끔한 URL로 변경 완료!')
+      if (window.location.hash || window.location.search) {
+        console.log('🧹 앱 로드 시 URL 정리 실행...', window.location.href)
+        window.history.replaceState({}, document.title, window.location.pathname)
+        console.log('✨ 깔끔한 URL로 변경 완료!', window.location.href)
       }
     }
 
     // 즉시 실행
     cleanUpUrl()
     
-    // 약간의 지연 후에도 한 번 더 실행 (Supabase 처리 후)
+    // 약간의 지연 후에도 한 번 더 실행
+    setTimeout(cleanUpUrl, 100)
+    setTimeout(cleanUpUrl, 300)
     setTimeout(cleanUpUrl, 500)
     setTimeout(cleanUpUrl, 1000)
+    setTimeout(cleanUpUrl, 2000)
   }, [])
 
   return (

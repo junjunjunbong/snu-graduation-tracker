@@ -8,6 +8,18 @@
   </head>
   <body>
     <div id="root"></div>
+    
+    <!-- 즉시 URL 정리 스크립트 (React 로드 전) -->
+    <script>
+      (function() {
+        if (window.location.hash || window.location.search) {
+          console.log('🚀 즉시 URL 정리:', window.location.href);
+          window.history.replaceState({}, document.title, window.location.pathname);
+          console.log('⚡ 즉시 정리 완료:', window.location.href);
+        }
+      })();
+    </script>
+    
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
