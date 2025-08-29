@@ -44,7 +44,7 @@ export const useAuthStore = create<AuthStore>()(
           const { error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
-              redirectTo: `${window.location.origin}${window.location.pathname}`,
+              redirectTo: window.location.origin,
               queryParams: {
                 access_type: 'offline',
                 prompt: 'consent',
@@ -291,6 +291,19 @@ supabase.auth.getSession().then(({ data: { session } }) => {
   }
 })
 
+// 강력한 URL 정리 함수
+const forceCleanUrl = () => {
+  if (window.location.hash || window.location.search) {
+    console.log('🧹 강제 URL 정리 실행...')
+    window.history.replaceState({}, document.title, window.location.origin + window.location.pathname)
+    console.log('✨ URL 완전 정리 완료!')
+  }
+}
+
+// 페이지 로드 시 URL 정리
+window.addEventListener('load', forceCleanUrl)
+window.addEventListener('DOMContentLoaded', forceCleanUrl)
+
 // Supabase 인증 상태 변경 감지
 supabase.auth.onAuthStateChange((event, session) => {
   const authStore = useAuthStore.getState()
@@ -334,6 +347,9 @@ supabase.auth.onAuthStateChange((event, session) => {
 
     // 데이터 마이그레이션 처리
     authStore.handleDataMigration()
+    
+    // 즉시 URL 강제 정리
+    forceCleanUrl()
   } else if (event === 'SIGNED_OUT') {
     useAuthStore.setState({
       user: null,
