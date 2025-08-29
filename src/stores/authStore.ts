@@ -34,7 +34,7 @@ export const useAuthStore = create<AuthStore>()(
     (set, get) => ({
       user: null,
       isAuthenticated: false,
-      isLoading: false,
+      isLoading: true, // 초기 로딩 상태
       error: null,
 
       signInWithGoogle: async () => {
@@ -44,7 +44,7 @@ export const useAuthStore = create<AuthStore>()(
           const { error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
-              redirectTo: window.location.origin,
+              redirectTo: `${window.location.origin}${window.location.pathname}`,
               queryParams: {
                 access_type: 'offline',
                 prompt: 'consent',
@@ -268,6 +268,29 @@ export const useAuthStore = create<AuthStore>()(
   )
 )
 
+// 초기 세션 확인
+supabase.auth.getSession().then(({ data: { session } }) => {
+  if (session?.user) {
+    const user: GoogleUser = {
+      id: session.user.id,
+      email: session.user.email || '',
+      name: session.user.user_metadata.full_name,
+      picture: session.user.user_metadata.avatar_url
+    }
+
+    useAuthStore.setState({
+      user,
+      isAuthenticated: true,
+      isLoading: false,
+      error: null
+    })
+  } else {
+    useAuthStore.setState({
+      isLoading: false
+    })
+  }
+})
+
 // Supabase 인증 상태 변경 감지
 supabase.auth.onAuthStateChange((event, session) => {
   const authStore = useAuthStore.getState()
@@ -287,6 +310,11 @@ supabase.auth.onAuthStateChange((event, session) => {
       error: null
     })
 
+    // URL 해시 정리 (토큰 정보 제거)
+    if (window.location.hash.includes('access_token')) {
+      window.history.replaceState({}, document.title, window.location.pathname + window.location.search)
+    }
+
     // 데이터 마이그레이션 처리
     authStore.handleDataMigration()
   } else if (event === 'SIGNED_OUT') {
@@ -296,5 +324,10 @@ supabase.auth.onAuthStateChange((event, session) => {
       isLoading: false,
       error: null
     })
+  } else if (event === 'TOKEN_REFRESHED') {
+    // 토큰 갱신 시에도 URL 정리
+    if (window.location.hash.includes('access_token')) {
+      window.history.replaceState({}, document.title, window.location.pathname + window.location.search)
+    }
   }
 })
