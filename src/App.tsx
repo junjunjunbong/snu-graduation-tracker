@@ -2,6 +2,7 @@ import { useCreditStore, useProfileStore } from './stores/creditStore'
 import RequirementCards from './components/RequirementCards'
 import SemesterGrid from './components/SemesterGrid'
 import Header from './components/Header'
+import { SyncStatus } from './components/SyncStatus'
 
 function App() {
   const { requirements } = useCreditStore()
@@ -11,6 +12,11 @@ function App() {
     <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', padding: '1rem' }}>
       {/* 헤더 */}
       <Header />
+      
+      {/* 동기화 상태 */}
+      <div style={{ maxWidth: '1200px', margin: '1rem auto 0' }}>
+        <SyncStatus />
+      </div>
       
       {/* 메인 컨테이너 */}
       <div style={{ 
