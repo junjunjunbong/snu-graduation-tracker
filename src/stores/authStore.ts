@@ -310,10 +310,18 @@ supabase.auth.onAuthStateChange((event, session) => {
       error: null
     })
 
-    // URL 해시 정리 (토큰 정보 제거)
-    if (window.location.hash.includes('access_token')) {
-      window.history.replaceState({}, document.title, window.location.pathname + window.location.search)
-    }
+    // URL 해시 정리 (토큰 정보 제거) - 강력한 정리
+    setTimeout(() => {
+      if (window.location.hash && (
+        window.location.hash.includes('access_token') || 
+        window.location.hash.includes('refresh_token') ||
+        window.location.hash.includes('provider_token')
+      )) {
+        console.log('🔄 URL 토큰 정리 중...')
+        window.history.replaceState({}, document.title, window.location.pathname + window.location.search)
+        console.log('✅ URL 정리 완료!')
+      }
+    }, 100)
 
     // 데이터 마이그레이션 처리
     authStore.handleDataMigration()
@@ -326,8 +334,16 @@ supabase.auth.onAuthStateChange((event, session) => {
     })
   } else if (event === 'TOKEN_REFRESHED') {
     // 토큰 갱신 시에도 URL 정리
-    if (window.location.hash.includes('access_token')) {
-      window.history.replaceState({}, document.title, window.location.pathname + window.location.search)
-    }
+    setTimeout(() => {
+      if (window.location.hash && (
+        window.location.hash.includes('access_token') || 
+        window.location.hash.includes('refresh_token') ||
+        window.location.hash.includes('provider_token')
+      )) {
+        console.log('🔄 토큰 갱신 후 URL 정리 중...')
+        window.history.replaceState({}, document.title, window.location.pathname + window.location.search)
+        console.log('✅ URL 정리 완료!')
+      }
+    }, 100)
   }
 })
