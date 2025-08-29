@@ -159,29 +159,31 @@ export function AuthButton() {
         </div>
       )}
 
-      {/* 구글 로그인 버튼 - 프리미엄 글래스모피즘 */}
+      {/* 🔥 초강력 네온 로그인 버튼 */}
       <button
         onClick={handleSignIn}
-        className="flex items-center text-white hover:text-white transition-all duration-300 group relative overflow-hidden"
+        className="flex items-center text-white hover:text-white transition-all duration-300 group relative overflow-hidden font-bold"
         style={{ 
-          padding: 'clamp(0.5rem, 2vw, 0.75rem) clamp(0.75rem, 2.5vw, 1rem)', 
-          gap: 'clamp(0.375rem, 1vw, 0.5rem)',
-          background: 'rgba(255, 255, 255, 0.15)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          border: '1px solid rgba(255, 255, 255, 0.2)',
-          borderRadius: '12px',
-          boxShadow: '0 8px 32px rgba(31, 38, 135, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
-          transform: 'translateY(0px)',
-          willChange: 'transform, box-shadow'
+          padding: 'clamp(0.75rem, 2.5vw, 1rem) clamp(1rem, 3vw, 1.25rem)', 
+          gap: 'clamp(0.5rem, 1.5vw, 0.75rem)',
+          background: 'linear-gradient(145deg, #FF6B6B, #4ECDC4, #45B7D1, #96CEB4)',
+          backgroundSize: '300% 300%',
+          border: '2px solid rgba(255, 255, 255, 0.3)',
+          borderRadius: '16px',
+          boxShadow: '0 15px 35px rgba(0, 0, 0, 0.2), 0 5px 15px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
+          transform: 'translateY(0px) scale(1)',
+          willChange: 'transform, box-shadow, background-position',
+          animation: 'gradientShift 3s ease infinite'
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.transform = 'translateY(-2px)';
-          e.currentTarget.style.boxShadow = '0 12px 40px rgba(31, 38, 135, 0.25), 0 0 20px rgba(255, 255, 255, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.2)';
+          e.currentTarget.style.transform = 'translateY(-3px) scale(1.05)';
+          e.currentTarget.style.boxShadow = '0 20px 60px rgba(0, 0, 0, 0.3), 0 0 30px rgba(255, 107, 107, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.4)';
+          e.currentTarget.style.backgroundPosition = '100% 0%';
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.transform = 'translateY(0px)';
-          e.currentTarget.style.boxShadow = '0 8px 32px rgba(31, 38, 135, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1)';
+          e.currentTarget.style.transform = 'translateY(0px) scale(1)';
+          e.currentTarget.style.boxShadow = '0 15px 35px rgba(0, 0, 0, 0.2), 0 5px 15px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.3)';
+          e.currentTarget.style.backgroundPosition = '0% 50%';
         }}
       >
         {/* 프리미엄 Google 아이콘 - 흰색 버전 */}
