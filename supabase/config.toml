@@ -8,8 +8,8 @@ max_rows = 1000
 [auth]
 enabled = true
 port = 54322
-site_url = "http://localhost:5173"
-additional_redirect_urls = ["https://your-deployment-url.vercel.app"]
+site_url = "https://snu-graduation-tracker.vercel.app"
+additional_redirect_urls = ["http://localhost:5173", "http://localhost:3000"]
 jwt_expiry = 3600
 refresh_token_rotation_enabled = true
 security_update_password_required = true
