@@ -21,7 +21,9 @@
 - **실시간 진행상황**: 입력 즉시 요구사항 업데이트
 
 ### 💾 데이터 관리
-- **자동 저장**: LocalStorage를 통한 데이터 지속성
+- **Google 로그인**: Google OAuth 2.0을 통한 안전한 인증
+- **클라우드 동기화**: Supabase를 통한 기기 간 데이터 동기화
+- **자동 저장**: LocalStorage 및 클라우드 이중 백업
 - **실시간 계산**: 학점 입력시 즉각적인 요구사항 업데이트
 - **상태 관리**: Zustand를 활용한 효율적인 상태 관리
 
@@ -53,18 +55,27 @@ npm run preview
 - **Build Tool**: Vite
 - **State Management**: Zustand with persist middleware
 - **Styling**: Custom CSS with CSS Grid & Flexbox
-- **Data Storage**: LocalStorage
+- **Backend**: Supabase (PostgreSQL + Auth + API)
+- **Authentication**: Google OAuth 2.0
+- **Deployment**: Vercel
+- **Data Storage**: LocalStorage + Cloud (Supabase)
 
 ## 📁 프로젝트 구조
 
 ```
 src/
 ├── components/          # UI 컴포넌트
-│   ├── Header.tsx      # 앱 헤더
+│   ├── Header.tsx      # 앱 헤더 + 로그인 버튼
+│   ├── AuthButton.tsx  # Google 로그인/로그아웃 버튼
 │   ├── RequirementCards.tsx  # 요구사항 진행 카드
-│   └── SemesterGrid.tsx      # 학기별 학점 입력 그리드
+│   ├── SemesterGrid.tsx      # 학기별 학점 입력 그리드
+│   ├── SyncStatus.tsx  # 클라우드 동기화 상태
+│   └── BrowserGuide.tsx # 외부앱 브라우저 가이드
 ├── stores/
-│   └── creditStore.ts  # Zustand 상태 관리
+│   ├── creditStore.ts  # Zustand 학점 상태 관리
+│   └── authStore.ts    # Google 인증 상태 관리
+├── lib/
+│   └── supabase.ts     # Supabase 클라이언트 설정
 ├── types/
 │   └── index.ts        # TypeScript 타입 정의
 ├── utils/
@@ -73,6 +84,11 @@ src/
 ```
 
 ## 📖 사용 방법
+
+### 0. Google 로그인 (권장)
+1. 우측 상단의 **"로그인"** 버튼 클릭
+2. Google 계정으로 로그인
+3. 데이터가 클라우드에 자동 백업되어 다른 기기에서도 접근 가능
 
 ### 1. 기본 사용
 1. 학기 카드에서 **"+ 학점 추가"** 버튼 클릭

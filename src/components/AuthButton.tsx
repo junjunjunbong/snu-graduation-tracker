@@ -12,6 +12,14 @@ export function AuthButton() {
     syncDataToCloud 
   } = useAuthStore()
 
+  // 디버깅용 로그
+  console.log('🔍 AuthButton 상태:', {
+    isAuthenticated,
+    user: user?.email,
+    isLoading,
+    error
+  })
+
   const handleSignIn = async () => {
     const success = await signInWithGoogle()
     if (!success && error) {
