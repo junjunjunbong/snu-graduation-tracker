@@ -11,65 +11,41 @@ function App() {
   const { requirements } = useCreditStore()
   const { dualMajorEnabled, toggleDualMajor } = useProfileStore()
 
-  // OAuth 콜백 처리 및 URL 정리
+  // OAuth 콜백 처리 - Supabase v2 방식
   useEffect(() => {
-    const handleOAuthCallback = async () => {
-      // OAuth 해시가 있는 경우 Supabase에서 세션 설정
-      if (window.location.hash && window.location.hash.includes('access_token')) {
-        console.log('🔑 OAuth 콜백 감지:', window.location.hash.substring(0, 50) + '...')
+    async function handleAuthRedirect() {
+      try {
+        console.log('🔍 OAuth 콜백 처리 시작...')
         
-        try {
-          // Supabase Auth 상태 변경을 수동으로 트리거하여 해시 처리
-          console.log('🔄 Supabase 세션 새로고침 시작...')
-          
-          // 현재 세션 확인
-          const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
-          console.log('📊 현재 세션 상태:', sessionData.session ? '✅ 있음' : '❌ 없음')
-          
-          if (!sessionData.session && !sessionError) {
-            // 세션이 없다면 해시에서 수동 파싱 시도
-            console.log('🔧 해시에서 수동 세션 복원 시도...')
-            
-            // Supabase가 해시를 자동으로 처리하도록 강제
-            const { error: refreshError } = await supabase.auth.refreshSession()
-            if (refreshError) {
-              console.error('세션 새로고침 오류:', refreshError)
-            }
-            
-            // 추가로 getUser로 현재 사용자 확인
-            const { data: userData, error: userError } = await supabase.auth.getUser()
-            if (userData.user && !userError) {
-              console.log('✅ 사용자 확인 성공:', userData.user.email)
-            }
-          }
-          
-          // 최종 세션 상태 확인
-          const { data: finalData } = await supabase.auth.getSession()
-          if (finalData.session) {
-            console.log('✅ OAuth 세션 설정 최종 성공:', finalData.session.user.email)
-          } else {
-            console.log('⚠️ 세션 설정이 완료되지 않음 - AuthStore에서 처리될 예정')
-          }
-        } catch (error) {
-          console.error('OAuth 콜백 처리 오류:', error)
+        // Supabase v2: getSessionFromUrl로 해시에서 세션 추출 및 저장
+        const { data, error } = await supabase.auth.getSessionFromUrl({ storeSession: true })
+        
+        if (error) {
+          console.error('🚨 getSessionFromUrl 오류:', error)
+        } else if (data?.session) {
+          console.log('✅ OAuth 세션 설정 성공:', data.session.user.email)
+          console.log('📊 세션 정보:', {
+            user: data.session.user.email,
+            expires: new Date(data.session.expires_at * 1000).toLocaleString()
+          })
+        } else {
+          console.log('ℹ️ OAuth 해시가 없거나 세션 생성되지 않음')
         }
         
-        // 약간의 지연 후 URL 정리 (Supabase 처리 완료 대기)
-        setTimeout(() => {
-          console.log('🧹 OAuth 콜백 후 URL 정리')
+      } catch (error) {
+        console.error('🚨 OAuth 콜백 처리 실패:', error)
+      } finally {
+        // 세션 처리 완료 후 URL 정리 (성공/실패 무관하게)
+        if (window.location.hash || window.location.search) {
+          console.log('🧹 URL 정리 실행...')
           window.history.replaceState({}, document.title, window.location.pathname)
-          console.log('✨ 깔끔한 URL로 변경 완료!')
-        }, 1000)
-      } else if (window.location.search) {
-        // 일반적인 쿼리 파라미터 정리
-        console.log('🧹 쿼리 파라미터 정리')
-        window.history.replaceState({}, document.title, window.location.pathname)
-        console.log('✨ URL 정리 완료!')
+          console.log('✨ 깔끔한 URL 완성!')
+        }
       }
     }
 
-    // OAuth 콜백 처리 실행
-    handleOAuthCallback()
+    // OAuth 리디렉션 처리 - 앱 로드 시 한 번만 실행
+    handleAuthRedirect()
   }, [])
 
   return (
