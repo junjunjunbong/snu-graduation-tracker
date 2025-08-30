@@ -114,7 +114,7 @@ export const useAuthStore = create<AuthStore>()(
           const keysToRemove: string[] = []
           for (let i = 0; i < localStorage.length; i++) {
             const k = localStorage.key(i)
-            if (k && k.startsWith('sb-') && k.includes('auth-token')) keysToRemove.push(k)
+            if (k !== null && k.startsWith('sb-') && k.includes('auth-token')) keysToRemove.push(k)
           }
           keysToRemove.forEach(k => localStorage.removeItem(k))
           if (keysToRemove.length) console.log(`🧽 sb auth-token ${keysToRemove.length}개 제거`)
@@ -122,7 +122,7 @@ export const useAuthStore = create<AuthStore>()(
           const sKeys: string[] = []
           for (let i = 0; i < sessionStorage.length; i++) {
             const k = sessionStorage.key(i)
-            if (k && k.startsWith('sb-') && k.includes('auth-token')) sKeys.push(k)
+            if (k !== null && k.startsWith('sb-') && k.includes('auth-token')) sKeys.push(k)
           }
           sKeys.forEach(k => sessionStorage.removeItem(k))
           if (sKeys.length) console.log(`🧽 sb(auth-token) 세션 키 ${sKeys.length}개 제거`)
@@ -136,51 +136,6 @@ export const useAuthStore = create<AuthStore>()(
           })
           try { console.log('🧹 Local signOut(scope: local) 백그라운드 실행'); await withTimeout(supabase.auth.signOut({ scope: 'local' }), 1500, 'signOut(local)'); console.log('✅ Local signOut 완료') } catch (e) { console.warn('⚠️ Local signOut 실패/타임아웃 (ignored):', e) }
           try { console.log('🌐 Global revoke(scope: global) 백그라운드 실행'); await withTimeout(supabase.auth.signOut({ scope: 'global' }), 5000, 'signOut(global)'); console.log('✅ Global revoke 완료') } catch (e) { console.warn('⚠️ Global revoke 실패/타임아웃 (ignored):', e) }
-        })()
-        return
-        try {
-          console.log('🧹 Local signOut(scope: local) 시도')
-          await supabase.auth.signOut({ scope: 'local' })
-        } catch (e) {
-          // ignore local signOut errors
-          console.warn('⚠️ fastSignOut local error (ignored):', e)
-        }
-        // Aggressively remove any residual Supabase auth tokens just in case
-        try {
-          const keysToRemove: string[] = []
-          for (let i = 0; i < localStorage.length; i++) {
-            const k = localStorage.key(i)
-            if (k && k.startsWith('sb-') && k.includes('auth-token')) keysToRemove.push(k)
-          }
-          keysToRemove.forEach(k => localStorage.removeItem(k))
-          if (keysToRemove.length) {
-            console.log(`🧽 Supabase 토큰 키 ${keysToRemove.length}개 제거`)
-          }
-        } catch {}
-        // Immediately update local app state
-        set({ user: null, isAuthenticated: false, isLoading: false, error: null })
-        console.log('✅ 로컬 상태 초기화 완료')
-        // Clear persisted auth after render
-        setTimeout(() => {
-          try { 
-            localStorage.removeItem('snu-auth-store')
-            console.log('🗑️ localStorage 인증 정보 제거 완료')
-          } catch {}
-        }, 50)
-        // Try global revoke in background with timeout so UI isn't blocked
-        ;(async () => {
-          const withTimeout = (p: Promise<any>, ms: number) => new Promise((resolve, reject) => {
-            const t = setTimeout(() => reject(new Error('signOut(global) timeout')), ms)
-            p.then(v => { clearTimeout(t); resolve(v) })
-             .catch(err => { clearTimeout(t); reject(err) })
-          })
-          try {
-            console.log('🌐 Global revoke(scope: global) 시도')
-            await withTimeout(supabase.auth.signOut({ scope: 'global' }), 5000)
-            console.log('✅ Global revoke 완료')
-          } catch (e) {
-            console.warn('⚠️ fastSignOut global revoke 실패/타임아웃 (ignored):', e)
-          }
         })()
       },
 
