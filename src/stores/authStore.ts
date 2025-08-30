@@ -21,6 +21,7 @@ interface AuthStore {
   // Actions
   signInWithGoogle: () => Promise<boolean>
   signOut: () => Promise<void>
+  fastSignOut: () => Promise<void>
   clearError: () => void
   
   // Data sync
@@ -64,21 +65,123 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       signOut: async () => {
+        console.log('🚪 로그아웃 시작...')
         set({ isLoading: true, error: null })
         
         try {
           const { error } = await supabase.auth.signOut()
           if (error) throw error
           
+          console.log('✅ Supabase 로그아웃 성공')
+          
+          // 상태 초기화 (partialize에서 빈 객체를 저장하게 됨)
           set({ 
             user: null, 
             isAuthenticated: false, 
-            isLoading: false 
+            isLoading: false,
+            error: null
           })
+
+          console.log('✅ 로컬 상태 초기화 완료')
+
+          // 확실하게 localStorage 제거 (persist가 저장한 후에 제거)
+          setTimeout(() => {
+            localStorage.removeItem('snu-auth-store')
+            console.log('✅ localStorage 인증 정보 제거 완료')
+          }, 100)
+          
+          console.log('🎉 로그아웃 완료')
         } catch (error) {
+          console.error('❌ 로그아웃 실패:', error)
           const errorMessage = error instanceof Error ? error.message : '로그아웃 중 오류가 발생했습니다'
           set({ error: errorMessage, isLoading: false })
         }
+      },
+
+      fastSignOut: async () => {
+        console.log('🚪 로그아웃 시작 (fastSignOut)')
+        // Fast, local-first sign out to avoid hanging on network issues
+        set({ isLoading: true, error: null })
+        // Immediately update local app state so UI never hangs
+        set({ user: null, isAuthenticated: false, isLoading: false, error: null })
+        console.log('✅ 로컬 상태 초기화 완료 (immediate)')
+        // Remove persisted auth key ASAP
+        setTimeout(() => {
+          try { localStorage.removeItem('snu-auth-store'); console.log('🗑️ snu-auth-store 제거') } catch {}
+        }, 0)
+        // Remove Supabase auth-token keys defensively (localStorage + sessionStorage)
+        try {
+          const keysToRemove: string[] = []
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i)
+            if (k && k.startsWith('sb-') && k.includes('auth-token')) keysToRemove.push(k)
+          }
+          keysToRemove.forEach(k => localStorage.removeItem(k))
+          if (keysToRemove.length) console.log(`🧽 sb auth-token ${keysToRemove.length}개 제거`)
+          // sessionStorage too (rare)
+          const sKeys: string[] = []
+          for (let i = 0; i < sessionStorage.length; i++) {
+            const k = sessionStorage.key(i)
+            if (k && k.startsWith('sb-') && k.includes('auth-token')) sKeys.push(k)
+          }
+          sKeys.forEach(k => sessionStorage.removeItem(k))
+          if (sKeys.length) console.log(`🧽 sb(auth-token) 세션 키 ${sKeys.length}개 제거`)
+        } catch {}
+        // Fire-and-forget local + global signouts with timeouts (do not block UI)
+        ;(async () => {
+          const withTimeout = (p: Promise<any>, ms: number, label: string) => new Promise((resolve, reject) => {
+            const t = setTimeout(() => reject(new Error(label + ' timeout')), ms)
+            p.then(v => { clearTimeout(t); resolve(v) })
+             .catch(err => { clearTimeout(t); reject(err) })
+          })
+          try { console.log('🧹 Local signOut(scope: local) 백그라운드 실행'); await withTimeout(supabase.auth.signOut({ scope: 'local' }), 1500, 'signOut(local)'); console.log('✅ Local signOut 완료') } catch (e) { console.warn('⚠️ Local signOut 실패/타임아웃 (ignored):', e) }
+          try { console.log('🌐 Global revoke(scope: global) 백그라운드 실행'); await withTimeout(supabase.auth.signOut({ scope: 'global' }), 5000, 'signOut(global)'); console.log('✅ Global revoke 완료') } catch (e) { console.warn('⚠️ Global revoke 실패/타임아웃 (ignored):', e) }
+        })()
+        return
+        try {
+          console.log('🧹 Local signOut(scope: local) 시도')
+          await supabase.auth.signOut({ scope: 'local' })
+        } catch (e) {
+          // ignore local signOut errors
+          console.warn('⚠️ fastSignOut local error (ignored):', e)
+        }
+        // Aggressively remove any residual Supabase auth tokens just in case
+        try {
+          const keysToRemove: string[] = []
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i)
+            if (k && k.startsWith('sb-') && k.includes('auth-token')) keysToRemove.push(k)
+          }
+          keysToRemove.forEach(k => localStorage.removeItem(k))
+          if (keysToRemove.length) {
+            console.log(`🧽 Supabase 토큰 키 ${keysToRemove.length}개 제거`)
+          }
+        } catch {}
+        // Immediately update local app state
+        set({ user: null, isAuthenticated: false, isLoading: false, error: null })
+        console.log('✅ 로컬 상태 초기화 완료')
+        // Clear persisted auth after render
+        setTimeout(() => {
+          try { 
+            localStorage.removeItem('snu-auth-store')
+            console.log('🗑️ localStorage 인증 정보 제거 완료')
+          } catch {}
+        }, 50)
+        // Try global revoke in background with timeout so UI isn't blocked
+        ;(async () => {
+          const withTimeout = (p: Promise<any>, ms: number) => new Promise((resolve, reject) => {
+            const t = setTimeout(() => reject(new Error('signOut(global) timeout')), ms)
+            p.then(v => { clearTimeout(t); resolve(v) })
+             .catch(err => { clearTimeout(t); reject(err) })
+          })
+          try {
+            console.log('🌐 Global revoke(scope: global) 시도')
+            await withTimeout(supabase.auth.signOut({ scope: 'global' }), 5000)
+            console.log('✅ Global revoke 완료')
+          } catch (e) {
+            console.warn('⚠️ fastSignOut global revoke 실패/타임아웃 (ignored):', e)
+          }
+        })()
       },
 
       clearError: () => {
@@ -260,10 +363,16 @@ export const useAuthStore = create<AuthStore>()(
     }),
     {
       name: 'snu-auth-store',
-      partialize: (state) => ({ 
-        user: state.user, 
-        isAuthenticated: state.isAuthenticated 
-      }),
+      partialize: (state) => {
+        // 로그아웃 상태일 때는 아무것도 저장하지 않음
+        if (!state.isAuthenticated || !state.user) {
+          return {}
+        }
+        return { 
+          user: state.user, 
+          isAuthenticated: state.isAuthenticated 
+        }
+      },
       // 저장된 상태가 복원될 때 세션 검증
       onRehydrateStorage: () => (state) => {
         console.log('💾 Zustand 상태 복원됨:', state?.isAuthenticated ? '인증됨' : '미인증')
@@ -281,10 +390,10 @@ export const useAuthStore = create<AuthStore>()(
               
               if (session?.user) {
                 console.log('✅ 세션 유효성 확인 완료')
-                // 세션이 유효하면 데이터 동기화만 수행
+                // 세션이 유효하면 데이터 로드만 수행
                 const authStore = useAuthStore.getState()
                 if (authStore.isAuthenticated) {
-                  await authStore.syncDataFromCloud()
+                  await useCreditStore.getState().loadFromSupabase()
                 }
               } else {
                 console.log('❌ 세션 만료 - 3초 후 로그아웃 처리')
@@ -365,13 +474,13 @@ const initializeAuth = async () => {
         })
       }, 50)
 
-      // 세션 복원 후 데이터 동기화
+      // 세션 복원 후 데이터 로드
       try {
-        const authStore = useAuthStore.getState()
-        await authStore.syncDataFromCloud()
-        console.log('🎉 initializeAuth - 로그인 완료 및 데이터 동기화 성공')
+        console.log('💾 initializeAuth - 데이터 로드 시작...')
+        await useCreditStore.getState().loadFromSupabase()
+        console.log('🎉 initializeAuth - 로그인 완료 및 데이터 로드 성공')
       } catch (error) {
-        console.error('❌ initializeAuth - 데이터 동기화 실패:', error)
+        console.error('❌ initializeAuth - 데이터 로드 실패:', error)
       }
     } else {
       console.log('❌ initializeAuth - 기존 세션 없음')
@@ -564,25 +673,31 @@ supabase.auth.onAuthStateChange(async (event, session) => {
     setTimeout(cleanUrl, 1000)
 
     try {
-      // 데이터 마이그레이션 처리 (비동기)
-      console.log('💾 데이터 마이그레이션 시작...')
-      await authStore.handleDataMigration()
-      console.log('✅ 데이터 마이그레이션 완료')
+      // 데이터 로드 처리 (비동기)
+      console.log('💾 데이터 로드 시작...')
+      await useCreditStore.getState().loadFromSupabase()
+      console.log('✅ 데이터 로드 완료')
     } catch (error) {
-      console.error('❌ 데이터 마이그레이션 실패:', error)
+      console.error('❌ 데이터 로드 실패:', error)
     }
     
     // 최종 URL 정리
     setTimeout(forceCleanUrl, 1500)
     
   } else if (event === 'SIGNED_OUT') {
-    console.log('👋 로그아웃 처리')
+    console.log('👋 SIGNED_OUT 이벤트 - 로그아웃 처리')
     useAuthStore.setState({
       user: null,
       isAuthenticated: false,
       isLoading: false,
       error: null
     })
+
+    // persist가 빈 객체를 저장한 후에 localStorage 완전 제거
+    setTimeout(() => {
+      localStorage.removeItem('snu-auth-store')
+      console.log('✅ SIGNED_OUT: localStorage 인증 정보 제거 완료')
+    }, 100)
   } else if (event === 'TOKEN_REFRESHED' && session?.user) {
     console.log('🔄 토큰 갱신됨 - 세션 유지')
     

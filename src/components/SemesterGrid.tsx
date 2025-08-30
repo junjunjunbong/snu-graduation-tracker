@@ -14,7 +14,7 @@ function CreditInput({ semester }: { semester: SemesterType }) {
   const [courseName, setCourseName] = useState('')
   const [isAdding, setIsAdding] = useState(false)
   
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
     const creditValue = parseFloat(credits)
@@ -26,13 +26,18 @@ function CreditInput({ semester }: { semester: SemesterType }) {
     // 전공필수/전공선택/복수전공필수/복수전공선택인 경우만 major를 전달
     const majorToPass = (bucket === 'MR' || bucket === 'ME' || bucket === 'OMR' || bucket === 'OME') ? major : undefined
     
-    const success = addTransaction(semester, bucket, creditValue, courseName.trim() || undefined, majorToPass)
-    if (success) {
-      setCredits('3')
-      setCourseName('')
-      setIsAdding(false)
-    } else {
-      alert('학점 입력에 실패했습니다. (0.5 단위로 입력해주세요)')
+    try {
+      const success = await addTransaction(semester, bucket, creditValue, courseName.trim() || undefined, majorToPass)
+      if (success) {
+        setCredits('3')
+        setCourseName('')
+        setIsAdding(false)
+      } else {
+        alert('학점 입력에 실패했습니다. (0.5 단위로 입력해주세요)')
+      }
+    } catch (error) {
+      console.error('학점 추가 실패:', error)
+      alert('학점 입력 중 오류가 발생했습니다.')
     }
   }
   
@@ -188,7 +193,14 @@ function SemesterColumn({ semester }: { semester: SemesterType }) {
               <div style={{ color: '#6b7280' }}>{txn.credits}학점</div>
             </div>
             <button
-              onClick={() => removeTransaction(txn.id)}
+              onClick={async () => {
+                try {
+                  await removeTransaction(txn.id)
+                } catch (error) {
+                  console.error('학점 삭제 실패:', error)
+                  alert('학점 삭제 중 오류가 발생했습니다.')
+                }
+              }}
               style={{ 
                 background: '#ef4444',
                 color: 'white',
